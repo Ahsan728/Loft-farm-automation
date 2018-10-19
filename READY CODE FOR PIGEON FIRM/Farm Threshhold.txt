@@ -1,0 +1,124 @@
+//forum.arduino.cc/index.php?topic=269938.0
+
+#include <OneWire.h>
+#include "DHT.h"
+#include <DallasTemperature.h>
+
+OneWire oneWire(18);
+
+#define DHTPIN 21 
+#define DHTTYPE DHT22
+
+#define RELAY_ON 0
+#define RELAY_OFF 1
+
+#define Relay_1  14  // Arduino Digital Output pins for relay 1 - DPDT relay for motor control
+#define Relay_2  15  // Arduino Digital Output pins for relay 2 - Fan
+#define Relay_3  16  // Arduino Digital Output pins for relay 3 - Sprinkler
+#define Relay_4  17  // Arduino Digital Output pins for relay 4 - Pump
+
+int setpointD = 18; // Reference Temperature for sensor Dallas DS18B20 
+int thresholdD = 7; // Temperature difference for sensor Dallas DS18B20 
+
+int setpointDHT = 18; // Reference Temperature for sensor DHT22
+int thresholdDHT = 7; // Temperature difference for sensor  Dallas DHT22
+
+DallasTemperature sensors(&oneWire);
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup()
+{
+  sensors.begin();
+  Serial.begin(9600);
+
+  //-------( Initialize Pins so relays are inactive at reset)----
+  digitalWrite(Relay_1, RELAY_OFF);
+  digitalWrite(Relay_2, RELAY_OFF);
+  digitalWrite(Relay_3, RELAY_OFF);
+  digitalWrite(Relay_4, RELAY_OFF);  
+
+  //---( THEN set pins as outputs )----  
+  pinMode(Relay_1, OUTPUT);   
+  pinMode(Relay_2, OUTPUT);  
+  pinMode(Relay_3, OUTPUT);  
+  pinMode(Relay_4, OUTPUT);    
+  delay(4000); //Check that all relays are inactive at Reset
+
+  dht.begin();
+
+}
+void loop()
+
+{
+  sensors.requestTemperatures();
+  float currentTempDallas1;
+  currentTempDallas1 = sensors.getTempCByIndex(0);
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  //Condition for triggering motor for opening sidewall curtains using relay 1, which should be initiated if either of temp sensors is higher than set value
+  if (currentTempDallas1 > setpointD+thresholdD || t > setpointDHT+thresholdDHT)
+  {
+    digitalWrite(Relay_1, RELAY_ON);// set the Relay ON
+    Serial.print("\t");
+    Serial.print("Sidewall curtains up");
+    Serial.print("\t");
+  }
+  if (currentTempDallas1 < setpointD || t < setpointDHT)
+  {
+    digitalWrite(Relay_1, RELAY_OFF);// set the Relay OFF
+    Serial.print("\t");
+    Serial.print("Sidewall curtains down");
+    Serial.print("\t");
+  }
+
+  //Condition for triggering the fan using relay 2, which should be initiated if either of temp sensors or humidity is higher than set value
+  if (currentTempDallas1 > setpointD+thresholdD || h > 75)
+  {
+    digitalWrite(Relay_2, RELAY_ON);// set the Relay ON
+    Serial.print("\t");
+    Serial.print("Fan ON");
+    Serial.print("\t");
+  }
+  if (currentTempDallas1 < setpointDHT || h < 75)
+  {
+    digitalWrite(Relay_2, RELAY_OFF);// set the Relay OFF
+    Serial.print("\t");
+    Serial.print("Fan OFF");
+    Serial.print("\t");
+  }
+
+  //Condition for triggering the sprinkler using relay 3, which should be initiated if humidity is higher than set value
+  if (h > 90)
+  {
+    digitalWrite(Relay_3, RELAY_ON);// set the Relay ON
+    Serial.print("\t");
+    Serial.print("Sprinkler ON");
+    Serial.print("\t");
+  }
+  else
+  {
+    digitalWrite(Relay_3, RELAY_OFF);// set the Relay OFF
+    Serial.print("\t");
+    Serial.print("Sprinkler OFF");
+    Serial.print("\t");
+  }
+
+    Serial.print("\t");
+    Serial.print("Temperature Dallas1: ");
+    Serial.print("\t");
+    Serial.println(currentTempDallas1,2);
+
+  if (isnan(t) || isnan(h)) {
+    Serial.println("Failed to read from DHT");
+  } 
+  else {
+    Serial.print("Humidity: "); 
+    Serial.print(h);
+    Serial.print(" %\t");
+    Serial.print("Temperature: "); 
+    Serial.print(t);
+    Serial.println(" *C");
+  }
+  delay(1000);
+}
